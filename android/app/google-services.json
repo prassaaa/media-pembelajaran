@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "512531945896",
+    "project_id": "pembelajaranapp-93ce4",
+    "storage_bucket": "pembelajaranapp-93ce4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512531945896:android:1a53cb8fa59d38d2aee59d",
+        "android_client_info": {
+          "package_name": "com.example.pembelajaran_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzh3Lv1ExV0ieHEBNDlNrb1IFCNkFB6Bg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
