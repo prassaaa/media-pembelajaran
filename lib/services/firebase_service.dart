@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pembelajaran_app/models/models.dart';
 import 'dart:io';
-import 'package:pembelajaran_app/services/imgbb_service.dart';
+import 'package:pembelajaran_app/services/cpanel_service.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ImgBBService _imgBBService = ImgBBService();
+  final CPanelService _cPanelService = CPanelService();
 
   // Collection references
   final CollectionReference _materiCollection = FirebaseFirestore.instance.collection('materi');
@@ -36,13 +36,18 @@ class FirebaseService {
 
     // Upload gambar jika ada
     if (gambar != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(gambar);
+      print('Uploading materi image to cPanel...');
+      String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
+        print('Materi image uploaded successfully, URL: $uploadedUrl');
         gambarUrl = uploadedUrl;
+      } else {
+        print('Failed to upload materi image to cPanel');
       }
     }
 
     // Create materi with timestamp and image URL
+    print('Saving materi with image URL: $gambarUrl');
     await _materiCollection.add({
       'judul': materi.judul,
       'deskripsi': materi.deskripsi,
@@ -59,12 +64,17 @@ class FirebaseService {
 
     // Upload gambar baru jika ada
     if (gambar != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(gambar);
+      print('Updating materi image on cPanel...');
+      String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
+        print('Materi image updated successfully, URL: $uploadedUrl');
         gambarUrl = uploadedUrl;
+      } else {
+        print('Failed to update materi image on cPanel');
       }
     }
 
+    print('Updating materi with image URL: $gambarUrl');
     await _materiCollection.doc(materi.id).update({
       'judul': materi.judul,
       'deskripsi': materi.deskripsi,
@@ -102,7 +112,7 @@ class FirebaseService {
 
     // Upload thumbnail jika ada
     if (thumbnail != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(thumbnail);
+      String? uploadedUrl = await _cPanelService.uploadImage(thumbnail);
       if (uploadedUrl != null) {
         thumbnailUrl = uploadedUrl;
       }
@@ -124,7 +134,7 @@ class FirebaseService {
 
     // Upload thumbnail baru jika ada
     if (thumbnail != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(thumbnail);
+      String? uploadedUrl = await _cPanelService.uploadImage(thumbnail);
       if (uploadedUrl != null) {
         thumbnailUrl = uploadedUrl;
       }
@@ -223,7 +233,7 @@ class FirebaseService {
 
     // Upload gambar jika ada
     if (gambar != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(gambar);
+      String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
         gambarUrl = uploadedUrl;
       }
@@ -246,7 +256,7 @@ class FirebaseService {
 
     // Upload gambar baru jika ada
     if (gambar != null) {
-      String? uploadedUrl = await _imgBBService.uploadImage(gambar);
+      String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
         gambarUrl = uploadedUrl;
       }
@@ -306,6 +316,15 @@ class FirebaseService {
       print('Video data preloaded');
     } catch (e) {
       print('Error preloading videos: $e');
+    }
+  }
+
+  Future<void> preloadMateri() async {
+    try {
+      await _materiCollection.get();
+      print('Materi data preloaded');
+    } catch (e) {
+      print('Error preloading materi: $e');
     }
   }
 }

@@ -24,6 +24,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await FirebaseService().preloadVideos();
+  await FirebaseService().preloadMateri();
   // Setup admin password jika belum ada
   final FirebaseService firebaseService = FirebaseService();
   await firebaseService.setupAdminPassword();

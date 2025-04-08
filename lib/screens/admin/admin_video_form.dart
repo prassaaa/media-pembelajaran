@@ -4,8 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pembelajaran_app/config/theme.dart';
 import 'package:pembelajaran_app/models/models.dart';
 import 'package:pembelajaran_app/services/firebase_service.dart';
-import 'package:pembelajaran_app/services/imgbb_service.dart';
 import 'package:pembelajaran_app/widgets/app_button.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminVideoForm extends StatefulWidget {
   const AdminVideoForm({Key? key}) : super(key: key);
@@ -16,7 +16,7 @@ class AdminVideoForm extends StatefulWidget {
 
 class _AdminVideoFormState extends State<AdminVideoForm> {
   final FirebaseService _firebaseService = FirebaseService();
-  final ImgBBService _imgBBService = ImgBBService();
+  final ImagePicker _picker = ImagePicker();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final TextEditingController _judulController = TextEditingController();
@@ -59,11 +59,11 @@ class _AdminVideoFormState extends State<AdminVideoForm> {
         _isImageLoading = true;
       });
       
-      final File? imageFile = await _imgBBService.pickImage();
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
       
-      if (imageFile != null) {
+      if (pickedFile != null) {
         setState(() {
-          _thumbnailFile = imageFile;
+          _thumbnailFile = File(pickedFile.path);
         });
       }
     } catch (e) {

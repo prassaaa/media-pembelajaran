@@ -35,16 +35,19 @@ class MateriDetailScreen extends StatelessWidget {
                           child: CircularProgressIndicator(),
                         ),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        color: AppTheme.primaryColorLight.withOpacity(0.3),
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported,
-                            color: Colors.white,
-                            size: 42,
+                      errorWidget: (context, url, error) {
+                        print("Error loading materi detail image: $error");
+                        return Container(
+                          color: AppTheme.primaryColorLight.withOpacity(0.3),
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: Colors.white,
+                              size: 42,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     )
                   : Container(
                       color: AppTheme.primaryColor,
@@ -125,8 +128,6 @@ class MateriDetailScreen extends StatelessWidget {
   }
 
   Widget _buildMateriContent(String content) {
-    // Ubah format konten jadi widget yang sesuai
-    // Untuk saat ini tampilkan sebagai plain text
     return Text(
       content,
       style: AppTheme.bodyMedium,

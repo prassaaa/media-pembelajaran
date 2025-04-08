@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pembelajaran_app/config/theme.dart';
 import 'package:pembelajaran_app/models/models.dart';
 import 'package:pembelajaran_app/services/firebase_service.dart';
 import 'package:pembelajaran_app/widgets/app_button.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart'; // Tambahkan ini
 
 class AdminMateriForm extends StatefulWidget {
   const AdminMateriForm({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class AdminMateriForm extends StatefulWidget {
 
 class _AdminMateriFormState extends State<AdminMateriForm> {
   final FirebaseService _firebaseService = FirebaseService();
+  final ImagePicker _picker = ImagePicker(); // Tambahkan ini
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final TextEditingController _judulController = TextEditingController();
@@ -23,6 +25,7 @@ class _AdminMateriFormState extends State<AdminMateriForm> {
 
   bool _isEditMode = false;
   bool _isLoading = false;
+  bool _isImageLoading = false;
   String _materiId = '';
   File? _gambarFile;
   String _gambarUrl = '';
@@ -52,23 +55,33 @@ class _AdminMateriFormState extends State<AdminMateriForm> {
 
   Future<void> _pickImage() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        _isImageLoading = true;
+      });
+      
+      // Ubah implementasi pemilihan gambar
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      
+      if (pickedFile != null) {
         setState(() {
-          _gambarFile = File(result.files.single.path!);
+          _gambarFile = File(pickedFile.path);
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error memilih gambar: ${e.toString()}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih gambar: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImageLoading = false;
+        });
+      }
     }
   }
 
@@ -256,50 +269,56 @@ class _AdminMateriFormState extends State<AdminMateriForm> {
                           color: Colors.grey.withOpacity(0.3),
                         ),
                       ),
-                      child: _gambarFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                _gambarFile!,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : _gambarUrl.isNotEmpty
+                      child: _isImageLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _gambarFile != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    _gambarUrl,
+                                  child: Image.file(
+                                    _gambarFile!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return const Center(
-                                        child: Icon(
-                                          Icons.broken_image,
-                                          size: 64,
-                                          color: Colors.grey,
-                                        ),
-                                      );
-                                    },
                                   ),
                                 )
-                              : Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.image,
-                                        size: 64,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Belum ada gambar',
-                                        style: AppTheme.bodyMedium.copyWith(
-                                          color: Colors.grey,
+                              : _gambarUrl.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: CachedNetworkImage(
+                                        imageUrl: _gambarUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => const Center(
+                                          child: CircularProgressIndicator(),
                                         ),
+                                        errorWidget: (context, url, error) {
+                                          print("Error loading image: $error");
+                                          return const Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              size: 64,
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    )
+                                  : Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.image,
+                                            size: 64,
+                                            color: Colors.grey,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Belum ada gambar',
+                                            style: AppTheme.bodyMedium.copyWith(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                     ),
                     const SizedBox(height: 8),
                     AppButton(

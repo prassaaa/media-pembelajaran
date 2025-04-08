@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:pembelajaran_app/config/theme.dart';
-import 'package:pembelajaran_app/services/imgbb_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ImageUploadWidget extends StatefulWidget {
   final String? initialImageUrl;
@@ -22,7 +22,7 @@ class ImageUploadWidget extends StatefulWidget {
 }
 
 class _ImageUploadWidgetState extends State<ImageUploadWidget> {
-  final ImgBBService _imgBBService = ImgBBService();
+  final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
   bool _isLoading = false;
 
@@ -32,8 +32,10 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
     });
 
     try {
-      final File? imageFile = await _imgBBService.pickImage();
-      if (imageFile != null) {
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      
+      if (pickedFile != null) {
+        final File imageFile = File(pickedFile.path);
         setState(() {
           _selectedImage = imageFile;
         });
@@ -41,9 +43,11 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
       }
     } catch (e) {
       print('Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih gambar: $e')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memilih gambar: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;

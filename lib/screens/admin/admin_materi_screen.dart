@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pembelajaran_app/config/constants.dart';
 import 'package:pembelajaran_app/config/theme.dart';
 import 'package:pembelajaran_app/models/models.dart';
@@ -15,6 +16,13 @@ class AdminMateriScreen extends StatefulWidget {
 class _AdminMateriScreenState extends State<AdminMateriScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
+  late Stream<List<Materi>> _materiStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _materiStream = _firebaseService.getMateri();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +36,9 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
               Navigator.pushNamed(
                 context,
                 AppConstants.routeAdminMateriForm,
-              ).then((_) => setState(() {}));
+              ).then((_) => setState(() {
+                    _materiStream = _firebaseService.getMateri();
+                  }));
             },
             icon: const Icon(Icons.add),
             tooltip: 'Tambah Materi',
@@ -38,7 +48,7 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
       body: _isLoading
           ? const LoadingWidget(message: 'Memuat data materi...')
           : StreamBuilder<List<Materi>>(
-              stream: _firebaseService.getMateri(),
+              stream: _materiStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const LoadingWidget(message: 'Memuat data materi...');
@@ -48,7 +58,9 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
                   return AppErrorWidget(
                     message: 'Terjadi kesalahan: ${snapshot.error}',
                     onRetry: () {
-                      setState(() {});
+                      setState(() {
+                        _materiStream = _firebaseService.getMateri();
+                      });
                     },
                   );
                 }
@@ -79,7 +91,9 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
           Navigator.pushNamed(
             context,
             AppConstants.routeAdminMateriForm,
-          ).then((_) => setState(() {}));
+          ).then((_) => setState(() {
+                _materiStream = _firebaseService.getMateri();
+              }));
         },
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.add),
@@ -102,12 +116,21 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: materi.gambarUrl.isNotEmpty
-                  ? Image.network(
-                      materi.gambarUrl,
+                  ? CachedNetworkImage(
+                      imageUrl: materi.gambarUrl,
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
+                      placeholder: (context, url) => Container(
+                        width: 80,
+                        height: 80,
+                        color: AppTheme.primaryColorLight.withOpacity(0.2),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) {
+                        print("Error loading admin materi image: $error");
                         return Container(
                           width: 80,
                           height: 80,
@@ -180,7 +203,9 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
                             context,
                             AppConstants.routeAdminMateriForm,
                             arguments: materi,
-                          ).then((_) => setState(() {}));
+                          ).then((_) => setState(() {
+                                _materiStream = _firebaseService.getMateri();
+                              }));
                         },
                       ),
                       const SizedBox(width: 8),
@@ -292,6 +317,9 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
             backgroundColor: AppTheme.successColor,
           ),
         );
+        setState(() {
+          _materiStream = _firebaseService.getMateri();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -314,4 +342,107 @@ class _AdminMateriScreenState extends State<AdminMateriScreen> {
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
-}
+  }
+
+  class AppErrorWidget extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const AppErrorWidget({
+    Key? key,
+    required this.message,
+    required this.onRetry,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 80,
+              color: AppTheme.errorColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Terjadi Kesalahan',
+              style: AppTheme.headingMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: AppTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  }
+
+  class EmptyStateWidget extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  const EmptyStateWidget({
+    Key? key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 80,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: AppTheme.headingMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: AppTheme.bodyMedium.copyWith(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  }
