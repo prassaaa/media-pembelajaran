@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pembelajaran_app/config/constants.dart';
 import 'package:pembelajaran_app/config/theme.dart';
 import 'package:pembelajaran_app/models/models.dart';
@@ -15,6 +16,13 @@ class AdminVideoScreen extends StatefulWidget {
 class _AdminVideoScreenState extends State<AdminVideoScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
+  late Stream<List<Video>> _videoStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _videoStream = _firebaseService.getVideos();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +36,9 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
               Navigator.pushNamed(
                 context,
                 AppConstants.routeAdminVideoForm,
-              ).then((_) => setState(() {}));
+              ).then((_) => setState(() {
+                    _videoStream = _firebaseService.getVideos();
+                  }));
             },
             icon: const Icon(Icons.add),
             tooltip: 'Tambah Video',
@@ -38,7 +48,7 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
       body: _isLoading
           ? const LoadingWidget(message: 'Memuat data video...')
           : StreamBuilder<List<Video>>(
-              stream: _firebaseService.getVideos(),
+              stream: _videoStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const LoadingWidget(message: 'Memuat data video...');
@@ -48,7 +58,9 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
                   return AppErrorWidget(
                     message: 'Terjadi kesalahan: ${snapshot.error}',
                     onRetry: () {
-                      setState(() {});
+                      setState(() {
+                        _videoStream = _firebaseService.getVideos();
+                      });
                     },
                   );
                 }
@@ -79,7 +91,9 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
           Navigator.pushNamed(
             context,
             AppConstants.routeAdminVideoForm,
-          ).then((_) => setState(() {}));
+          ).then((_) => setState(() {
+                _videoStream = _firebaseService.getVideos();
+              }));
         },
         backgroundColor: AppTheme.accentColor,
         child: const Icon(Icons.add),
@@ -108,10 +122,19 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
                 fit: StackFit.expand,
                 children: [
                   video.thumbnailUrl.isNotEmpty
-                      ? Image.network(
-                          video.thumbnailUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: video.thumbnailUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.accentColor.withOpacity(0.2),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: AppTheme.accentColor.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) {
+                            print("Error loading image: $error");
                             return Container(
                               color: AppTheme.accentColor.withOpacity(0.2),
                               child: const Center(
@@ -227,7 +250,9 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
                             context,
                             AppConstants.routeAdminVideoForm,
                             arguments: video,
-                          ).then((_) => setState(() {}));
+                          ).then((_) => setState(() {
+                                _videoStream = _firebaseService.getVideos();
+                              }));
                         },
                       ),
                     ),
@@ -326,6 +351,9 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
             backgroundColor: AppTheme.successColor,
           ),
         );
+        setState(() {
+          _videoStream = _firebaseService.getVideos();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -350,7 +378,6 @@ class _AdminVideoScreenState extends State<AdminVideoScreen> {
   }
 }
 
-// Widget tambahan yang mungkin diperlukan
 class AppErrorWidget extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;

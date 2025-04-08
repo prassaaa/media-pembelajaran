@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pembelajaran_app/config/theme.dart';
 import 'package:pembelajaran_app/models/models.dart';
 import 'package:pembelajaran_app/services/firebase_service.dart';
@@ -24,6 +25,7 @@ class _AdminVideoFormState extends State<AdminVideoForm> {
 
   bool _isEditMode = false;
   bool _isLoading = false;
+  bool _isImageLoading = false;
   String _videoId = '';
   File? _thumbnailFile;
   String _thumbnailUrl = '';
@@ -54,7 +56,7 @@ class _AdminVideoFormState extends State<AdminVideoForm> {
   Future<void> _pickThumbnail() async {
     try {
       setState(() {
-        _isLoading = true;
+        _isImageLoading = true;
       });
       
       final File? imageFile = await _imgBBService.pickImage();
@@ -65,16 +67,20 @@ class _AdminVideoFormState extends State<AdminVideoForm> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error memilih thumbnail: ${e.toString()}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih thumbnail: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isImageLoading = false;
+        });
+      }
     }
   }
 
@@ -294,50 +300,56 @@ class _AdminVideoFormState extends State<AdminVideoForm> {
                           color: Colors.grey.withOpacity(0.3),
                         ),
                       ),
-                      child: _thumbnailFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                _thumbnailFile!,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : _thumbnailUrl.isNotEmpty
+                      child: _isImageLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _thumbnailFile != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    _thumbnailUrl,
+                                  child: Image.file(
+                                    _thumbnailFile!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return const Center(
-                                        child: Icon(
-                                          Icons.broken_image,
-                                          size: 64,
-                                          color: Colors.grey,
-                                        ),
-                                      );
-                                    },
                                   ),
                                 )
-                              : Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.image,
-                                        size: 64,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Belum ada thumbnail',
-                                        style: AppTheme.bodyMedium.copyWith(
-                                          color: Colors.grey,
+                              : _thumbnailUrl.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: CachedNetworkImage(
+                                        imageUrl: _thumbnailUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => const Center(
+                                          child: CircularProgressIndicator(),
                                         ),
+                                        errorWidget: (context, url, error) {
+                                          print("Error loading thumbnail: $error");
+                                          return const Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              size: 64,
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    )
+                                  : Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.image,
+                                            size: 64,
+                                            color: Colors.grey,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Belum ada thumbnail',
+                                            style: AppTheme.bodyMedium.copyWith(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                     ),
                     const SizedBox(height: 8),
                     AppButton(
