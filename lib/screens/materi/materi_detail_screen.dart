@@ -18,13 +18,6 @@ class MateriDetailScreen extends StatelessWidget {
             expandedHeight: 200,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                materi.judul,
-                style: AppTheme.subtitleLarge.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
               background: materi.gambarUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: materi.gambarUrl,
@@ -70,6 +63,11 @@ class MateriDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Info Materi
+                  Text(
+                    materi.judul,
+                    style: AppTheme.headingSmall,
+                  ),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -89,6 +87,7 @@ class MateriDetailScreen extends StatelessWidget {
                         Text(
                           materi.deskripsi,
                           style: AppTheme.bodyMedium,
+                          textAlign: TextAlign.justify,
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -131,6 +130,7 @@ class MateriDetailScreen extends StatelessWidget {
     return Text(
       content,
       style: AppTheme.bodyMedium,
+      textAlign: TextAlign.justify,
     );
   }
 
