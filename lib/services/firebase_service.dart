@@ -167,12 +167,26 @@ class FirebaseService {
 
   // Get evaluasi by ID
   Future<Evaluasi> getEvaluasiById(String id) async {
+    print("Getting evaluasi by ID: $id");
     DocumentSnapshot doc = await _evaluasiCollection.doc(id).get();
-    return Evaluasi.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    if (!doc.exists) {
+      print("Evaluasi with ID $id does not exist");
+      throw Exception("Evaluasi tidak ditemukan");
+    }
+    
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    print("Raw evaluasi data: $data");
+    
+    Evaluasi evaluasi = Evaluasi.fromMap(data, doc.id);
+    print("Evaluasi loaded: ${evaluasi.judul}, soalIds: ${evaluasi.soalIds}");
+    return evaluasi;
   }
 
   // Tambah evaluasi baru
   Future<String> addEvaluasi(Evaluasi evaluasi) async {
+    print("Adding new evaluasi: ${evaluasi.judul}");
+    print("with soalIds: ${evaluasi.soalIds}");
+    
     DocumentReference docRef = await _evaluasiCollection.add({
       'judul': evaluasi.judul,
       'deskripsi': evaluasi.deskripsi,
@@ -180,65 +194,133 @@ class FirebaseService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    
+    print("New evaluasi created with ID: ${docRef.id}");
+    
+    // Verify the data was saved correctly
+    DocumentSnapshot verifyDoc = await docRef.get();
+    Map<String, dynamic> data = verifyDoc.data() as Map<String, dynamic>;
+    List<String> savedSoalIds = List<String>.from(data['soalIds'] ?? []);
+    print("Verified saved soalIds: $savedSoalIds");
+    
     return docRef.id;
   }
 
   // Update evaluasi
   Future<void> updateEvaluasi(Evaluasi evaluasi) async {
-    await _evaluasiCollection.doc(evaluasi.id).update({
-      'judul': evaluasi.judul,
-      'deskripsi': evaluasi.deskripsi,
-      'soalIds': evaluasi.soalIds,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    print("Updating evaluasi with ID: ${evaluasi.id}");
+    print("soalIds to update: ${evaluasi.soalIds}");
+    
+    try {
+      await _evaluasiCollection.doc(evaluasi.id).update({
+        'judul': evaluasi.judul,
+        'deskripsi': evaluasi.deskripsi,
+        'soalIds': evaluasi.soalIds,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      print("Evaluasi updated successfully");
+      
+      // Verify that the update was successful
+      DocumentSnapshot updatedDoc = await _evaluasiCollection.doc(evaluasi.id).get();
+      Map<String, dynamic> data = updatedDoc.data() as Map<String, dynamic>;
+      List<String> updatedSoalIds = List<String>.from(data['soalIds'] ?? []);
+      print("Verified soalIds after update: $updatedSoalIds");
+    } catch (e) {
+      print("Error updating evaluasi: $e");
+      throw e;
+    }
   }
 
   // Hapus evaluasi
   Future<void> deleteEvaluasi(String id) async {
+    print("Deleting evaluasi with ID: $id");
+    
     // Get evaluasi untuk mendapatkan soalIds
     Evaluasi evaluasi = await getEvaluasiById(id);
+    print("Found evaluasi with ${evaluasi.soalIds.length} soal to delete");
     
     // Hapus semua soal yang terkait
     for (String soalId in evaluasi.soalIds) {
-      await _soalCollection.doc(soalId).delete();
+      print("Deleting related soal: $soalId");
+      try {
+        await _soalCollection.doc(soalId).delete();
+        print("Soal $soalId deleted successfully");
+      } catch (e) {
+        print("Error deleting soal $soalId: $e");
+        // Continue with other deletions even if one fails
+      }
     }
     
     // Hapus evaluasi
     await _evaluasiCollection.doc(id).delete();
+    print("Evaluasi $id deleted successfully");
   }
 
   // SOAL OPERATIONS
   // Get soal by ID
   Future<Soal> getSoalById(String id) async {
+    print("Getting soal by ID: $id");
     DocumentSnapshot doc = await _soalCollection.doc(id).get();
-    return Soal.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    
+    if (!doc.exists) {
+      print("Soal with ID $id does not exist");
+      throw Exception("Soal tidak ditemukan");
+    }
+    
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    print("Raw soal data: $data");
+    
+    Soal soal = Soal.fromMap(data, doc.id);
+    print("Soal loaded: ${soal.pertanyaan}");
+    return soal;
   }
 
   // Get soal dari evaluasi
   Future<List<Soal>> getSoalFromEvaluasi(String evaluasiId) async {
+    print("Getting soal from evaluasi with ID: $evaluasiId");
+    
     Evaluasi evaluasi = await getEvaluasiById(evaluasiId);
+    print("Jumlah soalIds dalam evaluasi: ${evaluasi.soalIds.length}");
+    print("soalIds: ${evaluasi.soalIds}");
+    
     List<Soal> soalList = [];
     
     for (String soalId in evaluasi.soalIds) {
-      Soal soal = await getSoalById(soalId);
-      soalList.add(soal);
+      try {
+        print("Loading soal with ID: $soalId");
+        Soal soal = await getSoalById(soalId);
+        soalList.add(soal);
+        print("Added soal to list: ${soal.pertanyaan}");
+      } catch (e) {
+        print("Error loading soal $soalId: $e");
+        // Continue with other soal even if one fails
+      }
     }
     
+    print("Total soal loaded: ${soalList.length}");
     return soalList;
   }
 
   // Tambah soal baru
   Future<String> addSoal(Soal soal, File? gambar) async {
+    print("Adding new soal: ${soal.pertanyaan}");
+    
     String gambarUrl = soal.gambarUrl ?? '';
 
     // Upload gambar jika ada
     if (gambar != null) {
+      print("Uploading soal image");
       String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
         gambarUrl = uploadedUrl;
+        print("Image uploaded successfully: $gambarUrl");
+      } else {
+        print("Failed to upload image");
       }
     }
 
+    // Create soal document
     DocumentReference docRef = await _soalCollection.add({
       'pertanyaan': soal.pertanyaan,
       'opsi': soal.opsi,
@@ -247,21 +329,36 @@ class FirebaseService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    
+    print("New soal created with ID: ${docRef.id}");
+    
+    // Verify the soal was created correctly
+    DocumentSnapshot verifyDoc = await docRef.get();
+    Map<String, dynamic> data = verifyDoc.data() as Map<String, dynamic>;
+    print("Verified soal data: $data");
+    
     return docRef.id;
   }
 
   // Update soal
   Future<void> updateSoal(Soal soal, File? gambar) async {
+    print("Updating soal with ID: ${soal.id}");
+    
     String gambarUrl = soal.gambarUrl ?? '';
 
     // Upload gambar baru jika ada
     if (gambar != null) {
+      print("Uploading new soal image");
       String? uploadedUrl = await _cPanelService.uploadImage(gambar);
       if (uploadedUrl != null) {
         gambarUrl = uploadedUrl;
+        print("New image uploaded successfully: $gambarUrl");
+      } else {
+        print("Failed to upload new image");
       }
     }
 
+    // Update soal document
     await _soalCollection.doc(soal.id).update({
       'pertanyaan': soal.pertanyaan,
       'opsi': soal.opsi,
@@ -269,11 +366,88 @@ class FirebaseService {
       'gambarUrl': gambarUrl,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    
+    print("Soal updated successfully");
+    
+    // Verify the update was successful
+    DocumentSnapshot updatedDoc = await _soalCollection.doc(soal.id).get();
+    Map<String, dynamic> data = updatedDoc.data() as Map<String, dynamic>;
+    print("Verified updated soal data: $data");
   }
 
   // Hapus soal
   Future<void> deleteSoal(String id) async {
+    print("Deleting soal with ID: $id");
     await _soalCollection.doc(id).delete();
+    print("Soal deleted successfully");
+  }
+
+  // Method baru: menambahkan soal ke evaluasi
+  Future<void> addSoalToEvaluasi(String evaluasiId, String soalId) async {
+    print("Adding soal $soalId to evaluasi $evaluasiId");
+    
+    try {
+      // Get evaluasi saat ini
+      Evaluasi evaluasi = await getEvaluasiById(evaluasiId);
+      
+      // Tambahkan soalId ke array soalIds jika belum ada
+      List<String> updatedSoalIds = List<String>.from(evaluasi.soalIds);
+      if (!updatedSoalIds.contains(soalId)) {
+        updatedSoalIds.add(soalId);
+        print("Added soalId to array: $soalId");
+        
+        // Update dokumen evaluasi
+        await _evaluasiCollection.doc(evaluasiId).update({
+          'soalIds': updatedSoalIds,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        print("Evaluasi updated with new soalId");
+        
+        // Verify the update
+        DocumentSnapshot updatedDoc = await _evaluasiCollection.doc(evaluasiId).get();
+        Map<String, dynamic> data = updatedDoc.data() as Map<String, dynamic>;
+        List<String> verifiedSoalIds = List<String>.from(data['soalIds'] ?? []);
+        print("Verified updated soalIds: $verifiedSoalIds");
+      } else {
+        print("SoalId already exists in evaluasi, no update needed");
+      }
+    } catch (e) {
+      print("Error adding soal to evaluasi: $e");
+      throw e;
+    }
+  }
+  
+  // Method baru: menghapus soal dari evaluasi
+  Future<void> removeSoalFromEvaluasi(String evaluasiId, String soalId) async {
+    print("Removing soal $soalId from evaluasi $evaluasiId");
+    
+    try {
+      // Get evaluasi saat ini
+      Evaluasi evaluasi = await getEvaluasiById(evaluasiId);
+      
+      // Hapus soalId dari array soalIds
+      List<String> updatedSoalIds = List<String>.from(evaluasi.soalIds);
+      updatedSoalIds.remove(soalId);
+      print("Removed soalId from array: $soalId");
+      
+      // Update dokumen evaluasi
+      await _evaluasiCollection.doc(evaluasiId).update({
+        'soalIds': updatedSoalIds,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      print("Evaluasi updated after removing soalId");
+      
+      // Verify the update
+      DocumentSnapshot updatedDoc = await _evaluasiCollection.doc(evaluasiId).get();
+      Map<String, dynamic> data = updatedDoc.data() as Map<String, dynamic>;
+      List<String> verifiedSoalIds = List<String>.from(data['soalIds'] ?? []);
+      print("Verified updated soalIds after removal: $verifiedSoalIds");
+    } catch (e) {
+      print("Error removing soal from evaluasi: $e");
+      throw e;
+    }
   }
 
   // Verifikasi password admin

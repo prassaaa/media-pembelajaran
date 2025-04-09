@@ -30,8 +30,8 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final Object? args = ModalRoute.of(context)?.settings.arguments;
+    
     if (args != null && args is Evaluasi) {
-      // Edit mode
       _isEditMode = true;
       _evaluasiId = args.id;
       _judulController.text = args.judul;
@@ -40,11 +40,18 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
       
       // Load existing soal
       _loadSoal();
+    } else {
+      _isEditMode = false;
+      _evaluasiId = '';
+      _soalIds = [];
+      _soalList = [];
     }
   }
 
   Future<void> _loadSoal() async {
-    if (_soalIds.isEmpty) return;
+    if (_soalIds.isEmpty) {
+      return;
+    }
     
     setState(() {
       _isLoading = true;
@@ -52,11 +59,19 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
     
     try {
       List<Soal> soalList = [];
-      for (String id in _soalIds) {
-        final soal = await _firebaseService.getSoalById(id);
-        soalList.add(soal);
+      
+      // Gunakan pendekatan yang aman - ambil satu per satu tanpa modifikasi list saat iterasi
+      for (int i = 0; i < _soalIds.length; i++) {
+        String id = _soalIds[i];
+        try {
+          final soal = await _firebaseService.getSoalById(id);
+          soalList.add(soal);
+        } catch (e) {
+          // Log error tapi tidak mengubah _soalIds disini
+        }
       }
       
+      // Set state dengan soal yang berhasil dimuat
       setState(() {
         _soalList = soalList;
       });
@@ -78,6 +93,74 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
     }
   }
 
+  // Fungsi untuk membersihkan ID soal yang tidak valid
+  Future<void> _cleanupInvalidSoalIds() async {
+    if (!_isEditMode || _soalIds.isEmpty) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      List<String> validIds = [];
+      
+      for (String id in List<String>.from(_soalIds)) {
+        try {
+          await _firebaseService.getSoalById(id);
+          validIds.add(id);
+        } catch (e) {
+          // ID tidak valid, jangan tambahkan ke validIds
+        }
+      }
+      
+      if (validIds.length != _soalIds.length) {
+        setState(() {
+          _soalIds = validIds;
+        });
+        
+        // Update evaluasi di Firestore
+        final Evaluasi updatedEvaluasi = Evaluasi(
+          id: _evaluasiId,
+          judul: _judulController.text,
+          deskripsi: _deskripsiController.text,
+          soalIds: _soalIds,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        await _firebaseService.updateEvaluasi(updatedEvaluasi);
+        
+        // Reload soal
+        await _loadSoal();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Soal tidak valid berhasil dibersihkan'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada soal tidak valid yang perlu dibersihkan'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membersihkan soal: ${e.toString()}'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _judulController.dispose();
@@ -90,7 +173,8 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
       return;
     }
 
-    if (_soalList.isEmpty) {
+    // Validasi soal
+    if (_soalIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Evaluasi harus memiliki minimal 1 soal'),
@@ -141,16 +225,20 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
           updatedAt: DateTime.now(),
         );
 
-        await _firebaseService.addEvaluasi(evaluasi);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Evaluasi berhasil ditambahkan'),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-          Navigator.pop(context);
+        try {
+          await _firebaseService.addEvaluasi(evaluasi);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Evaluasi berhasil ditambahkan'),
+                backgroundColor: AppTheme.successColor,
+              ),
+            );
+            Navigator.pop(context);
+          }
+        } catch (e) {
+          throw e;
         }
       }
     } catch (e) {
@@ -179,10 +267,67 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
     );
 
     if (result != null && result is Soal) {
-      setState(() {
-        _soalList.add(result);
-        _soalIds.add(result.id);
-      });
+      // Verifikasi soal ada di Firestore
+      try {
+        await _firebaseService.getSoalById(result.id);
+        
+        // Soal berhasil diverifikasi, tambahkan ke list
+        setState(() {
+          _soalList.add(result);
+          _soalIds.add(result.id);
+        });
+        
+        // Perbarui evaluasi di Firestore jika dalam mode edit
+        if (_isEditMode) {
+          try {
+            setState(() {
+              _isLoading = true;
+            });
+            
+            final Evaluasi updatedEvaluasi = Evaluasi(
+              id: _evaluasiId,
+              judul: _judulController.text,
+              deskripsi: _deskripsiController.text,
+              soalIds: _soalIds,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+            
+            await _firebaseService.updateEvaluasi(updatedEvaluasi);
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Soal berhasil ditambahkan dan evaluasi diperbarui'),
+                  backgroundColor: AppTheme.successColor,
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error saat memperbarui evaluasi: ${e.toString()}'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          }
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Soal tidak dapat diverifikasi: ${e.toString()}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
     }
   }
 
@@ -198,6 +343,50 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
         _soalList[index] = result;
         // ID remains the same
       });
+      
+      // Perbarui evaluasi di Firestore jika dalam mode edit
+      if (_isEditMode) {
+        try {
+          setState(() {
+            _isLoading = true;
+          });
+          
+          final Evaluasi updatedEvaluasi = Evaluasi(
+            id: _evaluasiId,
+            judul: _judulController.text,
+            deskripsi: _deskripsiController.text,
+            soalIds: _soalIds,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          
+          await _firebaseService.updateEvaluasi(updatedEvaluasi);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Soal berhasil diedit dan evaluasi diperbarui'),
+                backgroundColor: AppTheme.successColor,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error saat memperbarui evaluasi: ${e.toString()}'),
+                backgroundColor: AppTheme.errorColor,
+              ),
+            );
+          }
+        } finally {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }
+      }
     }
   }
 
@@ -236,6 +425,24 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
                     _soalIds.removeAt(index);
                   });
                   
+                  // Perbarui evaluasi setelah menghapus soal
+                  if (_isEditMode) {
+                    try {
+                      final Evaluasi updatedEvaluasi = Evaluasi(
+                        id: _evaluasiId,
+                        judul: _judulController.text,
+                        deskripsi: _deskripsiController.text,
+                        soalIds: _soalIds,
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                      );
+                      
+                      await _firebaseService.updateEvaluasi(updatedEvaluasi);
+                    } catch (e) {
+                      // Error handling
+                    }
+                  }
+                  
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -272,6 +479,11 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
     );
   }
 
+  // Tambahkan metode untuk me-refresh data soal
+  Future<void> _refreshSoal() async {
+    await _loadSoal();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -279,6 +491,22 @@ class _AdminEvaluasiFormState extends State<AdminEvaluasiForm> {
         title: Text(_isEditMode ? 'Edit Evaluasi' : 'Tambah Evaluasi'),
         centerTitle: true,
         backgroundColor: AppTheme.successColor,
+        actions: [
+          // Tombol untuk membersihkan soal tidak valid jika dalam mode edit
+          if (_isEditMode)
+            IconButton(
+              icon: const Icon(Icons.cleaning_services),
+              onPressed: _cleanupInvalidSoalIds,
+              tooltip: 'Bersihkan Soal Tidak Valid',
+            ),
+          // Tombol refresh
+          if (_isEditMode)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _refreshSoal,
+              tooltip: 'Refresh Data Soal',
+            ),
+        ],
       ),
       body: _isLoading
           ? const LoadingWidget(message: 'Memuat data...')
